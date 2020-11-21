@@ -3,6 +3,7 @@ package com.lesjarones.amongus;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -96,6 +97,7 @@ public class PrepararPartida {
 				break;
 
 			default:
+				entrada.nextLine();
 				break;
 			}
 
@@ -205,27 +207,35 @@ public class PrepararPartida {
 	private List<Jugador> activarJugador(List<Jugador> listaJugadores) {
 		entrada.nextLine();
 
-		String otroJugador;
-		do {
-			System.out.println("¿Qué jugador quieres activar? Seleccionar número");
-			mostrarJugadores(listaJugadores);
-			int numJugador = entrada.nextInt();
-			listaJugadores.stream().filter(jugador -> jugador.getId() == numJugador)
-					.forEach(jugador -> jugador.setActivo(true));
+		List<Jugador> jugadoresInactivos = listaJugadores.stream()
+				.filter(jugador -> !jugador.isActivo())
+				.collect(Collectors.toList());
 
+		if (!jugadoresInactivos.isEmpty()) {
+			String otroJugador;
 			do {
-				System.out.println("¿Activar otro jugador? (S/n)");
-				mostrarJugadores(listaJugadores);
-				otroJugador = entrada.nextLine();
-			} while (!otroJugador.equalsIgnoreCase("s") && !otroJugador.equalsIgnoreCase("n")
-					&& !otroJugador.equalsIgnoreCase(""));
-		} while (otroJugador.isEmpty() || otroJugador.equalsIgnoreCase("S"));
+				System.out.println("¿Qué jugador quieres activar? Seleccionar número");
+				mostrarJugadores(jugadoresInactivos);
+				int numJugador = entrada.nextInt();
+				listaJugadores.stream().filter(jugador -> jugador.getId() == numJugador)
+						.forEach(jugador -> jugador.setActivo(true));
+
+				do {
+					System.out.println("¿Activar otro jugador? (S/n)");
+					mostrarJugadores(listaJugadores);
+					otroJugador = entrada.nextLine();
+				} while (!otroJugador.equalsIgnoreCase("s") && !otroJugador.equalsIgnoreCase("n")
+						&& !otroJugador.equalsIgnoreCase(""));
+			} while (otroJugador.isEmpty() || otroJugador.equalsIgnoreCase("S"));
+		} else {
+			System.out.println("No hay ningún jugador inactivo");
+		}
 		return listaJugadores;
 	}
 
 	private void mostrarJugadores(List<Jugador> listaJugadores) {
 		for (int i = 0; i < listaJugadores.size(); i++) {
-			System.out.println(String.format("%d - %s", i + 1, listaJugadores.get(i).getNombre()));
+			System.out.println(String.format("%d - %s", listaJugadores.get(i).getId(), listaJugadores.get(i).getNombre()));
 		}
 	}
 

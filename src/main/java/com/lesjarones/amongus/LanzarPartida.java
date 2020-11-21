@@ -25,7 +25,7 @@ public class LanzarPartida {
 
 	public void lanzarPartida(List<Jugador> listaJugadores) {
 
-		numeroImpostores();
+		numeroImpostores(listaJugadores);
 
 		String otraPartida;
 		do {
@@ -99,7 +99,7 @@ public class LanzarPartida {
 				} while (!cambioNumImpostores.equalsIgnoreCase("s") && !cambioNumImpostores.equalsIgnoreCase("n")
 						&& !cambioNumImpostores.equalsIgnoreCase(""));
 				if (cambioNumImpostores.equalsIgnoreCase("s") || cambioNumImpostores.equalsIgnoreCase("")) {
-					numeroImpostores();
+					numeroImpostores(listaJugadores);
 				}
 			}
 
@@ -120,8 +120,9 @@ public class LanzarPartida {
 		System.out.println();
 	}
 
-	private void numeroImpostores() {
+	private void numeroImpostores(List<Jugador> listaJugadores) {
 		String confirmar;
+		boolean numeroIncorrectoImpostores;;
 		do {
 			System.out.println("¿Cuantos impostores hay en la partida? Seleccionar número");
 			numImpostores = entrada.nextInt();
@@ -131,7 +132,16 @@ public class LanzarPartida {
 				confirmar = entrada.nextLine();
 			} while (!confirmar.equalsIgnoreCase("s") && !confirmar.equalsIgnoreCase("n")
 					&& !confirmar.equalsIgnoreCase(""));
-		} while (confirmar.equalsIgnoreCase("n") || numImpostores > 3 || numImpostores < 1);
+			
+			numeroIncorrectoImpostores = numImpostores > 3 || numImpostores < 1 
+					|| numImpostores >= listaJugadores.size();
+			
+			if(numeroIncorrectoImpostores) {
+				System.out.println("No puede haber menos de 1 impostor, ni mas de 3");
+				System.out.println("El número de impostores debe ser menor que el número de jugadores");
+			}
+			
+		} while (confirmar.equalsIgnoreCase("n") || numeroIncorrectoImpostores);
 	}
 
 	private void mostrarJugadores(List<Jugador> listaJugadores) {
