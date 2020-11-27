@@ -1,14 +1,14 @@
 package com.lesjarones.amongus;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.lesjarones.amongus.model.Jugador;
+import com.lesjarones.amongus.model.Mostrar;
+import com.lesjarones.amongus.service.JugadorService;
+import com.lesjarones.amongus.util.Util;
 
 import lombok.NoArgsConstructor;
 
@@ -19,7 +19,12 @@ public class PrepararPartida {
 	@Autowired
 	private LanzarPartida lanzar;
 
+	@Autowired
+	private JugadorService service;
+
 	Scanner entrada = new Scanner(System.in);
+	
+	int numJugadores;
 
 	public void iniciar() {
 
@@ -27,52 +32,47 @@ public class PrepararPartida {
 		System.out.println("********************* Iniciando bot *******************");
 		System.out.println("*******************************************************");
 		System.out.println("");
+		
+		Util.mostrarMarcadoresPc(service.jugadoresGuardados(), Mostrar.Global);
+		Util.estadisticas(service.jugadoresGuardados(), service.masDe100(), service.masDe500(), Mostrar.Global);
+		
+		System.out.println("");
+		System.out.println("");
+		
 		System.out.println("¿Cuantos jugadores hay en la partida?");
-		int numJugadores = entrada.nextInt();
-
-		List<Jugador> listaJugadores = new ArrayList<>();
+		numJugadores = entrada.nextInt();
 		entrada.nextLine();
-		for (int i = 0; i < numJugadores; i++) {
-			Jugador jugador = new Jugador();
-			jugador.setId(i + 1);
-			System.out.println(String.format("¿Cuál es el nombre del jugador %d?", i + 1));
-			String nombre = entrada.nextLine();
-			jugador.setNombre(nombre);
-			jugador.setPartidasGanadasImpostor(0);
-			jugador.setPartidasGanadasTripulante(0);
-			jugador.setPartidasImpostor(0);
-			jugador.setPartidasJugadas(0);
-			jugador.setActivo(true);
-			listaJugadores.add(jugador);
-		}
+		
+		System.out.println();
+		
+		if (Util.preguntaBoolean("¿Hay jugadores nuevos?"))
+			añadirJugador();
+
+		System.out.println();
+		
+		Util.mostrarJugadores(service.jugadoresGuardados());
+		String idJugador;
+		System.out.println("Selecciona el número del jugador que va a jugar y pulsa intro");
+		do {
+			idJugador = entrada.nextLine();
+			service.activarJugador(Long.parseLong(idJugador));
+		} while(service.jugadoresActivos().size() < numJugadores);
+		
+		
 
 		System.out.println("");
-		boolean esCorrecta = verificarJugadores(listaJugadores);
-
-		if (esCorrecta) {
-			lanzarJuego(listaJugadores);
+		Util.mostrarJugadores(service.jugadoresActivos());
+		if (Util.preguntaBoolean("¿La lista de jugadores es correcta?")) {
+			lanzar.lanzarPartida();
 		} else {
-			listaJugadores = corregirJugadores(listaJugadores);
-			lanzarJuego(listaJugadores);
+			corregirJugadores();
+			lanzar.lanzarPartida();
 		}
 
 		entrada.close();
 	}
 
-	private boolean verificarJugadores(List<Jugador> listaJugadores) {
-		String esCorrecta;
-		do {
-			System.out.println("¿La lista de jugadores es correcta? (S/n)");
-			mostrarJugadores(listaJugadores);
-			esCorrecta = entrada.nextLine();
-		} while (!esCorrecta.equalsIgnoreCase("s") && !esCorrecta.equalsIgnoreCase("n")
-				&& !esCorrecta.equalsIgnoreCase(""));
-
-		return (esCorrecta.isEmpty() || esCorrecta.equalsIgnoreCase("S"));
-	}
-
-	public List<Jugador> corregirJugadores(List<Jugador> listaJugadores) {
-		String otraCorrecion;
+	public void corregirJugadores() {
 		do {
 			System.out.println("¿Qué quieres hacer? Seleccionar número");
 			System.out.println("1 - Añadir jugador");
@@ -84,16 +84,19 @@ public class PrepararPartida {
 
 			switch (opcion) {
 			case 1:
-				listaJugadores = añadirJugador(listaJugadores);
+				añadirJugador();
 				break;
 			case 2:
-				listaJugadores = modificarJugador(listaJugadores);
+				modificarJugador();
 				break;
 			case 3:
-				listaJugadores = eliminarJugador(listaJugadores);
+				eliminarJugador();
 				break;
 			case 4:
-				listaJugadores = activarJugador(listaJugadores);
+				activarJugador();
+				break;
+			case 5:
+				desactivarJugador();
 				break;
 
 			default:
@@ -101,145 +104,100 @@ public class PrepararPartida {
 				break;
 			}
 
-			do {
-				System.out.println("¿Quieres hacer otra correción? (S/n)");
-				otraCorrecion = entrada.nextLine();
-			} while (!otraCorrecion.equalsIgnoreCase("s") && !otraCorrecion.equalsIgnoreCase("n")
-					&& !otraCorrecion.equalsIgnoreCase(""));
-		} while (otraCorrecion.isEmpty() || otraCorrecion.equalsIgnoreCase("S"));
+			System.out.println();
+		} while (Util.preguntaBoolean("¿Quieres hacer otra correción?"));
 
-		return listaJugadores;
 	}
 
-	private List<Jugador> añadirJugador(List<Jugador> listaJugadores) {
+	private void añadirJugador() {
 		entrada.nextLine();
-
-		String otroJugador;
 		do {
-			Jugador jugador = new Jugador();
-			jugador.setId(listaJugadores.size() + 1);
-			System.out.println("¿Cuál es el nombre del nuevo jugador?");
-			String nombre = entrada.nextLine();
-			jugador.setNombre(nombre);
-			jugador.setPartidasGanadasImpostor(0);
-			jugador.setPartidasGanadasTripulante(0);
-			jugador.setPartidasImpostor(0);
-			jugador.setPartidasJugadas(0);
-			jugador.setActivo(true);
-			listaJugadores.add(jugador);
-
-			do {
-				System.out.println("¿Añadir otro jugador? (S/n)");
-				mostrarJugadores(listaJugadores);
-				otroJugador = entrada.nextLine();
-			} while (!otroJugador.equalsIgnoreCase("s") && !otroJugador.equalsIgnoreCase("n")
-					&& !otroJugador.equalsIgnoreCase(""));
-		} while (otroJugador.isEmpty() || otroJugador.equalsIgnoreCase("S"));
-
-		return listaJugadores;
+			service.nuevoJugador(numJugadores);
+			Util.mostrarJugadores(service.jugadoresActivos());
+			System.out.println();
+		} while (Util.preguntaBoolean("¿Añadir otro jugador?"));
 	}
 
-	private List<Jugador> modificarJugador(List<Jugador> listaJugadores) {
+	private void modificarJugador() {
 		entrada.nextLine();
 
-		String otroJugador;
 		do {
 			System.out.println("¿Qué jugador quieres modificar? Seleccionar número");
-			mostrarJugadores(listaJugadores);
-			int numJugador = entrada.nextInt();
-			Jugador jugadorModificar = listaJugadores.get(numJugador - 1);
+			Util.mostrarJugadores(service.jugadoresActivos());
+			long numJugador = entrada.nextLong();
 
 			entrada.nextLine();
 			System.out.println("¿Cuál es el nuevo nombre del jugador?");
 			String nombre = entrada.nextLine();
-			jugadorModificar.setNombre(nombre);
-			listaJugadores.stream().filter(jugador -> jugador.getId() == jugadorModificar.getId()).findFirst()
-					.ifPresent(jugador -> jugador = jugadorModificar);
+			Jugador jugador = service.buscarPorId(numJugador);
+			jugador.setNombre(nombre);
+			service.modificarJugador(jugador);
 
-			do {
-				System.out.println("¿Modificar otro jugador? (S/n)");
-				mostrarJugadores(listaJugadores);
-				otroJugador = entrada.nextLine();
-			} while (!otroJugador.equalsIgnoreCase("s") && !otroJugador.equalsIgnoreCase("n")
-					&& !otroJugador.equalsIgnoreCase(""));
-		} while (otroJugador.isEmpty() || otroJugador.equalsIgnoreCase("S"));
+			Util.mostrarJugadores(service.jugadoresActivos());
+			System.out.println();
+		} while (Util.preguntaBoolean("¿Modificar otro jugador?"));
 
-		return listaJugadores;
 	}
 
-	private List<Jugador> eliminarJugador(List<Jugador> listaJugadores) {
+	private void eliminarJugador() {
 		entrada.nextLine();
 
-		String otroJugador;
 		do {
 			System.out.println("¿Qué jugador quieres eliminar? Seleccionar número");
-			mostrarJugadores(listaJugadores);
-			int numJugador = entrada.nextInt();
+			Util.mostrarJugadores(service.jugadoresActivos());
+			long numJugador = entrada.nextLong();
 
 			entrada.nextLine();
-			String eliminarDefinitivo;
-			do {
-				System.out.println("¿Eliminar definitivamente al jugador? (S/n)");
-				System.out.println("Si lo eliminas definitivamente se borrarán todos sus datos.");
-				System.out.println("En caso contrario, se marcará como inactivo y se mantendrán sus datos");
-				eliminarDefinitivo = entrada.nextLine();
-			} while (!eliminarDefinitivo.equalsIgnoreCase("s") && !eliminarDefinitivo.equalsIgnoreCase("n")
-					&& !eliminarDefinitivo.equalsIgnoreCase(""));
 
 			// Si no se borra definitivamente, se marca como inactivo para que no le cuenten
 			// las partidas jugadas
-			if (eliminarDefinitivo.equalsIgnoreCase("s") || eliminarDefinitivo.equalsIgnoreCase(""))
-				listaJugadores.removeIf(jugador -> jugador.getId() == numJugador);
+			System.out.println("Si eliminas definitivamente al jugador se borrarán todos sus datos.");
+			System.out.println("En caso contrario, se marcará como inactivo y se mantendrán sus datos");
+			if (Util.preguntaBoolean("¿Eliminar definitivamente al jugador?"))
+				service.borrarJugador(numJugador);
 			else
-				listaJugadores.stream().filter(jugador -> jugador.getId() == numJugador)
-						.forEach(jugador -> jugador.setActivo(false));
+				service.desactivarJugador(numJugador);
 
-			do {
-				System.out.println("¿Eliminar otro jugador? (S/n)");
-				mostrarJugadores(listaJugadores);
-				otroJugador = entrada.nextLine();
-			} while (!otroJugador.equalsIgnoreCase("s") && !otroJugador.equalsIgnoreCase("n")
-					&& !otroJugador.equalsIgnoreCase(""));
-		} while (otroJugador.isEmpty() || otroJugador.equalsIgnoreCase("S"));
-		return listaJugadores;
+			Util.mostrarJugadores(service.jugadoresActivos());
+			System.out.println();
+		} while (Util.preguntaBoolean("¿Eliminar otro jugador?"));
+		
 	}
 
-	private List<Jugador> activarJugador(List<Jugador> listaJugadores) {
+	private void activarJugador() {
 		entrada.nextLine();
 
-		List<Jugador> jugadoresInactivos = listaJugadores.stream()
-				.filter(jugador -> !jugador.isActivo())
-				.collect(Collectors.toList());
-
-		if (!jugadoresInactivos.isEmpty()) {
-			String otroJugador;
+		if (!service.jugadoresInactivos().isEmpty()) {
 			do {
 				System.out.println("¿Qué jugador quieres activar? Seleccionar número");
-				mostrarJugadores(jugadoresInactivos);
-				int numJugador = entrada.nextInt();
-				listaJugadores.stream().filter(jugador -> jugador.getId() == numJugador)
-						.forEach(jugador -> jugador.setActivo(true));
+				Util.mostrarJugadores(service.jugadoresInactivos());
+				long numJugador = entrada.nextLong();
+				service.activarJugador(numJugador);
 
-				do {
-					System.out.println("¿Activar otro jugador? (S/n)");
-					mostrarJugadores(listaJugadores);
-					otroJugador = entrada.nextLine();
-				} while (!otroJugador.equalsIgnoreCase("s") && !otroJugador.equalsIgnoreCase("n")
-						&& !otroJugador.equalsIgnoreCase(""));
-			} while (otroJugador.isEmpty() || otroJugador.equalsIgnoreCase("S"));
+				Util.mostrarJugadores(service.jugadoresActivos());
+				System.out.println();
+			} while (Util.preguntaBoolean("¿Activar otro jugador?"));
 		} else {
 			System.out.println("No hay ningún jugador inactivo");
 		}
-		return listaJugadores;
+	}
+	
+	private void desactivarJugador() {
+		entrada.nextLine();
+
+		do {
+			System.out.println("¿Qué jugador quieres desactivar? Seleccionar número");
+			Util.mostrarJugadores(service.jugadoresActivos());
+			long numJugador = entrada.nextLong();
+
+			entrada.nextLine();
+
+			service.desactivarJugador(numJugador);
+
+			Util.mostrarJugadores(service.jugadoresActivos());
+			System.out.println();
+		} while (Util.preguntaBoolean("¿Desactivar otro jugador?"));
+		
 	}
 
-	private void mostrarJugadores(List<Jugador> listaJugadores) {
-		for (int i = 0; i < listaJugadores.size(); i++) {
-			System.out.println(String.format("%d - %s", listaJugadores.get(i).getId(), listaJugadores.get(i).getNombre()));
-		}
-	}
-
-	private void lanzarJuego(List<Jugador> listaJugadores) {
-		lanzar.lanzarPartida(listaJugadores);
-	}
 }

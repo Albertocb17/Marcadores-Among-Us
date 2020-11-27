@@ -3,12 +3,14 @@ package com.lesjarones.amongus;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.lesjarones.amongus.model.Jugador;
+import com.lesjarones.amongus.model.Mostrar;
+import com.lesjarones.amongus.service.JugadorService;
+import com.lesjarones.amongus.util.Util;
 
 import lombok.NoArgsConstructor;
 
@@ -19,15 +21,18 @@ public class LanzarPartida {
 	@Autowired
 	private PrepararPartida modificarPartida;
 
+	@Autowired
+	private JugadorService service;
+
 	Scanner entrada = new Scanner(System.in);
 
 	int numImpostores;
 
-	public void lanzarPartida(List<Jugador> listaJugadores) {
+	public void lanzarPartida() {
 
-		numeroImpostores(listaJugadores);
+		numeroImpostores(service.jugadoresActivos());
 
-		String otraPartida;
+		boolean otraPartida;
 		do {
 			System.out.println("*******************************************************");
 			System.out.println("****************** Comienza la partida ****************");
@@ -37,76 +42,86 @@ public class LanzarPartida {
 			entrada.nextLine();
 
 			// Se suma 1 al numero de partidas jugadas
-			listaJugadores.stream().filter(Jugador::isActivo)
-					.forEach(jugador -> jugador.setPartidasJugadas(jugador.getPartidasJugadas() + 1));
+			service.jugadoresActivos().forEach(jugador -> {
+				jugador.setPartidasJugadasHoy(jugador.getPartidasJugadasHoy() + 1);
+				service.modificarJugador(jugador);
+			});
 
 			System.out.println("¿Quienes eran los impostores? Seleccionar un número y pulsar intro");
-			mostrarJugadores(listaJugadores.stream().filter(Jugador::isActivo).collect(Collectors.toList()));
-			List<Integer> listaImpostores = new ArrayList<Integer>();
+			Util.mostrarJugadores(service.jugadoresActivos());
+			List<Long> listaImpostores = new ArrayList<Long>();
 			for (int i = 0; i < numImpostores; i++) {
-				int numJugador = entrada.nextInt();
+				long numJugador = entrada.nextLong();
 				listaImpostores.add(numJugador);
 			}
 			entrada.nextLine();
 
 			// Se suma 1 al numero de partidas jugadas como impostor
-			listaJugadores.stream().filter(jugador -> listaImpostores.contains(jugador.getId())).forEach(jugador -> {
-				jugador.setPartidasImpostor(jugador.getPartidasImpostor() + 1);
-			});
-
-			String ganadoImpostores;
-			do {
-				System.out.println("¿Han ganado los impostores? (S/n)");
-				ganadoImpostores = entrada.nextLine();
-			} while (!ganadoImpostores.equalsIgnoreCase("s") && !ganadoImpostores.equalsIgnoreCase("n")
-					&& !ganadoImpostores.equalsIgnoreCase(""));
+			service.jugadoresActivos().stream().filter(jugador -> listaImpostores.contains(jugador.getId()))
+					.forEach(jugador -> {
+						jugador.setPartidasImpostorHoy(jugador.getPartidasImpostorHoy() + 1);
+						service.modificarJugador(jugador);
+					});
 
 			// Si los impostores ganan se suma 1 al numero de partidas ganadas como impostor
-			if (ganadoImpostores.equalsIgnoreCase("s") || ganadoImpostores.equalsIgnoreCase("")) {
-				listaJugadores.stream().filter(jugador -> listaImpostores.contains(jugador.getId())).forEach(
-						jugador -> jugador.setPartidasGanadasImpostor(jugador.getPartidasGanadasImpostor() + 1));
+			if (Util.preguntaBoolean("¿Han ganado los impostores?")) {
+				service.jugadoresActivos().stream().filter(jugador -> listaImpostores.contains(jugador.getId()))
+						.forEach(jugador -> {
+							jugador.setPartidasGanadasImpostorHoy(jugador.getPartidasGanadasImpostorHoy() + 1);
+							service.modificarJugador(jugador);
+						});
 			} else {
-				listaJugadores.stream().filter(Jugador::isActivo)
-						.filter(jugador -> !listaImpostores.contains(jugador.getId())).forEach(jugador -> jugador
-								.setPartidasGanadasTripulante(jugador.getPartidasGanadasTripulante() + 1));
+				service.jugadoresActivos().stream().filter(jugador -> !listaImpostores.contains(jugador.getId()))
+						.forEach(jugador -> {
+							jugador.setPartidasGanadasTripulanteHoy(jugador.getPartidasGanadasTripulanteHoy() + 1);
+							service.modificarJugador(jugador);
+						});
 			}
 
-			mostrarMarcadores(listaJugadores);
+			mostrarMarcadores(service.jugadoresActivos(), Mostrar.Hoy);
+			
+			Util.estadisticas(service.jugadoresActivos(), service.masDe100(), service.masDe500(), Mostrar.Hoy);
 
-			do {
-				System.out.println("¿Se juega otra partida? (S/n)");
-				otraPartida = entrada.nextLine();
-			} while (!otraPartida.equalsIgnoreCase("s") && !otraPartida.equalsIgnoreCase("n")
-					&& !otraPartida.equalsIgnoreCase(""));
-
-			if (otraPartida.equalsIgnoreCase("s") || otraPartida.equalsIgnoreCase("")) {
+			System.out.println();
+			otraPartida = Util.preguntaBoolean("¿Se juega otra partida?");
+			if (otraPartida) {
 				// Comprobar si hay cambios antes de empezar la siguiente partida
-				String cambios;
-				do {
-					System.out.println("¿Hay cambios antes de comenzar la partida? (S/n)");
-					cambios = entrada.nextLine();
-				} while (!cambios.equalsIgnoreCase("s") && !cambios.equalsIgnoreCase("n")
-						&& !cambios.equalsIgnoreCase(""));
-				if (cambios.equalsIgnoreCase("s") || cambios.equalsIgnoreCase("")) {
-					listaJugadores = modificarPartida.corregirJugadores(listaJugadores);
+				if (Util.preguntaBoolean("¿Hay cambios antes de comenzar la partida?")) {
+					modificarPartida.corregirJugadores();
 				}
 
 				// Cambiar el numero de impostores
-				String cambioNumImpostores;
-				do {
-					System.out.println("¿Cambiar el numero de impostores? (S/n)");
-					cambioNumImpostores = entrada.nextLine();
-				} while (!cambioNumImpostores.equalsIgnoreCase("s") && !cambioNumImpostores.equalsIgnoreCase("n")
-						&& !cambioNumImpostores.equalsIgnoreCase(""));
-				if (cambioNumImpostores.equalsIgnoreCase("s") || cambioNumImpostores.equalsIgnoreCase("")) {
-					numeroImpostores(listaJugadores);
+				if (Util.preguntaBoolean("¿Cambiar el numero de impostores?")) {
+					numeroImpostores(service.jugadoresActivos());
 				}
 			}
+			
+			System.out.println();
 
-		} while (otraPartida.isEmpty() || otraPartida.equalsIgnoreCase("S"));
-
-		mostrarMarcadoresPc(listaJugadores);
+		} while (otraPartida);
 		
+		// Marcar todos como inactivos
+		service.jugadoresActivos().forEach(jugador -> service.desactivarJugador(jugador.getId()));
+		
+		// Sumar info de hoy a la global y poner lo de hoy a cero
+		service.jugadoresGuardados().forEach(jugador -> {
+			jugador.setPartidasJugadas(jugador.getPartidasJugadas() + jugador.getPartidasJugadasHoy());
+			jugador.setPartidasImpostor(jugador.getPartidasImpostor() + jugador.getPartidasImpostorHoy());
+			jugador.setPartidasGanadasImpostor(jugador.getPartidasGanadasImpostor() + jugador.getPartidasGanadasImpostorHoy());
+			jugador.setPartidasGanadasTripulante(jugador.getPartidasGanadasTripulante() + jugador.getPartidasGanadasTripulanteHoy());
+			jugador.setPartidasJugadasHoy(0);
+			jugador.setPartidasImpostor(0);
+			jugador.setPartidasGanadasImpostorHoy(0);
+			jugador.setPartidasGanadasTripulanteHoy(0);
+			service.modificarJugador(jugador);
+		});
+		
+		mostrarMarcadores(service.jugadoresActivos(), Mostrar.Global);
+
+		Util.mostrarMarcadoresPc(service.jugadoresActivos(), Mostrar.Global);
+		
+		Util.estadisticas(service.jugadoresActivos(), service.masDe100(), service.masDe500(), Mostrar.Global);
+
 		agradecimientosPorUtilizarBot();
 
 	}
@@ -121,46 +136,50 @@ public class LanzarPartida {
 	}
 
 	private void numeroImpostores(List<Jugador> listaJugadores) {
-		String confirmar;
-		boolean numeroIncorrectoImpostores;;
+		boolean numeroIncorrectoImpostores;
+		
 		do {
 			System.out.println("¿Cuantos impostores hay en la partida? Seleccionar número");
 			numImpostores = entrada.nextInt();
 			entrada.nextLine();
-			do {
-				System.out.println(String.format("¿Estas seguro de que hay %d impostores? (S/n)", numImpostores));
-				confirmar = entrada.nextLine();
-			} while (!confirmar.equalsIgnoreCase("s") && !confirmar.equalsIgnoreCase("n")
-					&& !confirmar.equalsIgnoreCase(""));
-			
-			numeroIncorrectoImpostores = numImpostores > 3 || numImpostores < 1 
+
+			numeroIncorrectoImpostores = numImpostores > 3 || numImpostores < 1
 					|| numImpostores >= listaJugadores.size();
-			
-			if(numeroIncorrectoImpostores) {
+
+			if (numeroIncorrectoImpostores) {
 				System.out.println("No puede haber menos de 1 impostor, ni mas de 3");
 				System.out.println("El número de impostores debe ser menor que el número de jugadores");
 			}
-			
-		} while (confirmar.equalsIgnoreCase("n") || numeroIncorrectoImpostores);
+
+		} while (!Util.preguntaBoolean("¿Estas seguro de que hay %d impostores?", numImpostores) || numeroIncorrectoImpostores);
 	}
 
-	private void mostrarJugadores(List<Jugador> listaJugadores) {
-		for (int i = 0; i < listaJugadores.size(); i++) {
-			System.out.println(
-					String.format("%d - %s", listaJugadores.get(i).getId(), listaJugadores.get(i).getNombre()));
-		}
-	}
-	
-	private void mostrarMarcadores(List<Jugador> listaJugadores) {
+	private void mostrarMarcadores(List<Jugador> listaJugadores, Mostrar mostrar) {
 		System.out.println();
 		System.out.println("********************************");
 		System.out.println("********* MARCADORES ***********");
 		System.out.println("********************************");
 		System.out.println("            J | I | GI | GT");
-		listaJugadores.forEach(jugador -> System.out.println(pintarNombreJugador(jugador) + pintarBlancos("", 2)
-				+ jugador.getPartidasJugadas() + pintarBlancos("", 3) + jugador.getPartidasImpostor()
-				+ pintarBlancos("", 3) + jugador.getPartidasGanadasImpostor() + pintarBlancos("", 4)
-				+ jugador.getPartidasGanadasTripulante()));
+		listaJugadores.forEach(jugador -> {
+			int partidasJugadas;
+			int partidasImpostor;
+			int partidasGanadasImpostor;
+			int partidasGanadasTripulante;
+			if (mostrar.equals(Mostrar.Global)) {
+				partidasJugadas = jugador.getPartidasJugadas();
+				partidasImpostor = jugador.getPartidasImpostor();
+				partidasGanadasImpostor = jugador.getPartidasGanadasImpostor();
+				partidasGanadasTripulante = jugador.getPartidasGanadasTripulante();
+			} else {
+				partidasJugadas = jugador.getPartidasJugadasHoy();
+				partidasImpostor = jugador.getPartidasImpostorHoy();
+				partidasGanadasImpostor = jugador.getPartidasGanadasImpostorHoy();
+				partidasGanadasTripulante = jugador.getPartidasGanadasTripulanteHoy();
+			}
+			System.out.println(pintarNombreJugador(jugador) + Util.pintarBlancos("", 2) + partidasJugadas
+					+ Util.pintarBlancos("", 3) + partidasImpostor + Util.pintarBlancos("", 3) + partidasGanadasImpostor
+					+ Util.pintarBlancos("", 4) + partidasGanadasTripulante);
+		});
 		System.out.println("********************************");
 		System.out.println("********************************");
 		System.out.println("* J -> Patidas jugadas");
@@ -169,45 +188,14 @@ public class LanzarPartida {
 		System.out.println("* GT -> Ganadas tripulante");
 		System.out.println();
 	}
-	
+
 	private String pintarNombreJugador(Jugador jugador) {
-		return pintarBlancos(
+		return Util.pintarBlancos(
 				jugador.getNombre().substring(0,
 						(jugador.getNombre().length() > 10 ? 10 : jugador.getNombre().length())),
 				10 - jugador.getNombre()
 						.substring(0, (jugador.getNombre().length() > 10 ? 10 : jugador.getNombre().length()))
 						.length());
-	}
-
-	private void mostrarMarcadoresPc(List<Jugador> listaJugadores) {
-		System.out.println();
-		System.out.println("***************************************************************************");
-		System.out.println("********************************* MARCADORES ******************************");
-		System.out.println("***************************************************************************");
-		System.out.println("                Jugadas | Impostor | Ganadas Impostor | Ganadas Tripulante");
-		listaJugadores.forEach(jugador -> System.out.println(pintarNombreJugadorPc(jugador) + pintarBlancos("", 3)
-				+ jugador.getPartidasJugadas() + pintarBlancos("", 10) + jugador.getPartidasImpostor()
-				+ pintarBlancos("", 14) + jugador.getPartidasGanadasImpostor() + pintarBlancos("", 18)
-				+ jugador.getPartidasGanadasTripulante()));
-		System.out.println("***************************************************************************");
-		System.out.println("***************************************************************************");
-		System.out.println();
-	}
-
-	private String pintarNombreJugadorPc(Jugador jugador) {
-		return pintarBlancos(
-				jugador.getNombre().substring(0,
-						(jugador.getNombre().length() > 16 ? 16 : jugador.getNombre().length())),
-				16 - jugador.getNombre()
-						.substring(0, (jugador.getNombre().length() > 16 ? 16 : jugador.getNombre().length()))
-						.length());
-	}
-
-	private String pintarBlancos(String cadena, int numBlancos) {
-		int tamTotal = cadena.length() + numBlancos;
-		while (cadena.length() < tamTotal)
-			cadena = cadena + " ";
-		return cadena;
 	}
 
 }
